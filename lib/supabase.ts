@@ -64,36 +64,63 @@ export interface TestReport {
 // Local storage helpers for fallback
 export const localStorageHelpers = {
   getPatients: (): Patient[] => {
-    if (typeof window === "undefined") return []
-    const stored = localStorage.getItem("meditrack-patients")
-    return stored ? JSON.parse(stored) : getDefaultPatients()
+    if (typeof window === "undefined") return getDefaultPatients()
+    try {
+      const stored = localStorage.getItem("meditrack-patients")
+      return stored ? JSON.parse(stored) : getDefaultPatients()
+    } catch (error) {
+      console.error("Error reading from localStorage:", error)
+      return getDefaultPatients()
+    }
   },
 
   setPatients: (patients: Patient[]) => {
     if (typeof window === "undefined") return
-    localStorage.setItem("meditrack-patients", JSON.stringify(patients))
+    try {
+      localStorage.setItem("meditrack-patients", JSON.stringify(patients))
+    } catch (error) {
+      console.error("Error writing to localStorage:", error)
+    }
   },
 
   getAppointments: (): Appointment[] => {
-    if (typeof window === "undefined") return []
-    const stored = localStorage.getItem("meditrack-appointments")
-    return stored ? JSON.parse(stored) : getDefaultAppointments()
+    if (typeof window === "undefined") return getDefaultAppointments()
+    try {
+      const stored = localStorage.getItem("meditrack-appointments")
+      return stored ? JSON.parse(stored) : getDefaultAppointments()
+    } catch (error) {
+      console.error("Error reading appointments from localStorage:", error)
+      return getDefaultAppointments()
+    }
   },
 
   setAppointments: (appointments: Appointment[]) => {
     if (typeof window === "undefined") return
-    localStorage.setItem("meditrack-appointments", JSON.stringify(appointments))
+    try {
+      localStorage.setItem("meditrack-appointments", JSON.stringify(appointments))
+    } catch (error) {
+      console.error("Error writing appointments to localStorage:", error)
+    }
   },
 
   getReports: (): TestReport[] => {
-    if (typeof window === "undefined") return []
-    const stored = localStorage.getItem("meditrack-reports")
-    return stored ? JSON.parse(stored) : getDefaultReports()
+    if (typeof window === "undefined") return getDefaultReports()
+    try {
+      const stored = localStorage.getItem("meditrack-reports")
+      return stored ? JSON.parse(stored) : getDefaultReports()
+    } catch (error) {
+      console.error("Error reading reports from localStorage:", error)
+      return getDefaultReports()
+    }
   },
 
   setReports: (reports: TestReport[]) => {
     if (typeof window === "undefined") return
-    localStorage.setItem("meditrack-reports", JSON.stringify(reports))
+    try {
+      localStorage.setItem("meditrack-reports", JSON.stringify(reports))
+    } catch (error) {
+      console.error("Error writing reports to localStorage:", error)
+    }
   },
 }
 
