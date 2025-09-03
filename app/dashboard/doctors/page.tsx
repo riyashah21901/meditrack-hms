@@ -2,16 +2,15 @@
 
 import type React from "react"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Separator } from "@/components/ui/separator"
-import { toast } from "@/hooks/use-toast"
 import { Plus, Pencil, Trash2, Search } from "lucide-react"
+import { supabase, isSupabaseAvailable } from "@/lib/supabase"
 
 type Doctor = {
   id: string
@@ -23,199 +22,259 @@ type Doctor = {
   updated_at?: string
 }
 
+type FormState = {
+  id?: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+}
+
+const LS_KEY = "meditrack:doctors"
+
+function getLocalDoctors(): Doctor[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Doctor[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function setLocalDoctors(list: Doctor[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(list))
+  } catch {
+    // ignore
+  }
+}
+
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([])
-  const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<Doctor | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const formRef = useRef<HTMLFormElement | null>(null)
 
-  const initialForm: Doctor = useMemo(
-    () => ({
-      id: "",
-      first_name: "",
-      last_name: "",
-      email: "",
-      phone: "",
-    }),
-    [],
-  )
+  const [form, setForm] = useState<FormState>({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+  })
 
-  const [form, setForm] = useState<Doctor>(initialForm)
-
+  // Load doctors (Supabase if available, otherwise localStorage)
   useEffect(() => {
+    let mounted = true
     async function load() {
-      setLoading(true)
       try {
-        const res = await fetch("/api/doctors", { cache: "no-store" })
-        const json = await res.json()
-        setDoctors(json.data ?? [])
-      } catch (e: any) {
-        console.error(e)
-        toast({ title: "Failed to load doctors", description: e?.message ?? "Unknown error" })
-      } finally {
-        setLoading(false)
+        if (isSupabaseAvailable && supabase) {
+          const { data, error } = await supabase.from("doctors").select("*").order("created_at", { ascending: false })
+          if (error) throw error
+          if (mounted && data) {
+            setDoctors(data as Doctor[])
+            setLocalDoctors(data as Doctor[])
+          }
+        } else {
+          const local = getLocalDoctors()
+          if (mounted) setDoctors(local)
+        }
+      } catch (err) {
+        console.error("Failed to load doctors:", err)
+        const local = getLocalDoctors()
+        if (mounted) setDoctors(local)
       }
     }
     load()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return doctors
-    const q = query.toLowerCase()
-    return doctors.filter(
-      (d) =>
-        d.first_name.toLowerCase().includes(q) ||
-        d.last_name.toLowerCase().includes(q) ||
-        (d.email ?? "").toLowerCase().includes(q) ||
-        (d.phone ?? "").toLowerCase().includes(q),
+    const q = query.toLowerCase().trim()
+    if (!q) return doctors
+    return doctors.filter((d) =>
+      [d.id, d.first_name, d.last_name, d.email ?? "", d.phone ?? ""].join(" ").toLowerCase().includes(q),
     )
   }, [doctors, query])
 
   function openCreate() {
-    setEditing(null)
-    setForm(initialForm)
+    setForm({
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+    })
     setOpen(true)
   }
 
   function openEdit(doc: Doctor) {
-    setEditing(doc)
-    setForm({ ...doc })
+    setForm({
+      id: doc.id,
+      first_name: doc.first_name ?? "",
+      last_name: doc.last_name ?? "",
+      email: doc.email ?? "",
+      phone: doc.phone ?? "",
+    })
     setOpen(true)
   }
 
-  function closeDialog() {
-    setOpen(false)
-    setEditing(null)
-    setForm(initialForm)
-  }
-
-  function onChange<K extends keyof Doctor>(key: K, val: Doctor[K]) {
-    setForm((f) => ({ ...f, [key]: val }))
+  function generateDoctorId(existing: Doctor[]) {
+    // D + zero-padded increment based on max numeric suffix
+    const nums = existing.map((d) => Number.parseInt(d.id.replace(/\D/g, ""), 10)).filter((n) => !isNaN(n))
+    const next = (nums.length ? Math.max(...nums) : 0) + 1
+    return `D${String(next).padStart(3, "0")}`
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.first_name.trim() || !form.last_name.trim()) {
-      toast({ title: "First and Last Name are required" })
-      return
-    }
-
-    startTransition(async () => {
-      try {
-        if (editing) {
-          const res = await fetch(`/api/doctors/${editing.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              first_name: form.first_name.trim(),
-              last_name: form.last_name.trim(),
-              email: form.email?.toString().trim() || null,
-              phone: form.phone?.toString().trim() || null,
-            }),
-          })
-          const json = await res.json()
-          if (!res.ok) throw new Error(json.error || "Update failed")
-          setDoctors((list) => list.map((d) => (d.id === editing.id ? json.data : d)))
-          toast({ title: "Doctor updated" })
-        } else {
-          const res = await fetch("/api/doctors", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              first_name: form.first_name.trim(),
-              last_name: form.last_name.trim(),
-              email: form.email?.toString().trim() || null,
-              phone: form.phone?.toString().trim() || null,
-            }),
-          })
-          const json = await res.json()
-          if (!res.ok) throw new Error(json.error || "Create failed")
-          setDoctors((list) => [json.data, ...list])
-          toast({ title: "Doctor added" })
+    setSaving(true)
+    try {
+      const now = new Date().toISOString()
+      if (form.id) {
+        // Update
+        const updated: Partial<Doctor> = {
+          first_name: form.first_name,
+          last_name: form.last_name,
+          email: form.email || null,
+          phone: form.phone || null,
+          updated_at: now,
         }
-        closeDialog()
-      } catch (e: any) {
-        console.error(e)
-        toast({ title: "Action failed", description: e?.message ?? "Unknown error" })
+        if (isSupabaseAvailable && supabase) {
+          const { error } = await supabase.from("doctors").update(updated).eq("id", form.id)
+          if (error) throw error
+        }
+        setDoctors((prev) => {
+          const next = prev.map((d) => (d.id === form.id ? ({ ...d, ...updated } as Doctor) : d))
+          setLocalDoctors(next)
+          return next
+        })
+      } else {
+        // Create
+        const newDoctor: Doctor = {
+          id: generateDoctorId(doctors),
+          first_name: form.first_name,
+          last_name: form.last_name,
+          email: form.email || null,
+          phone: form.phone || null,
+          created_at: now,
+          updated_at: now,
+        }
+        if (isSupabaseAvailable && supabase) {
+          const { error } = await supabase.from("doctors").insert(newDoctor)
+          if (error) throw error
+        }
+        setDoctors((prev) => {
+          const next = [newDoctor, ...prev]
+          setLocalDoctors(next)
+          return next
+        })
       }
-    })
+      setOpen(false)
+    } catch (err) {
+      console.error("Failed to save doctor:", err)
+      alert("Failed to save doctor. Please check Supabase table and RLS policies.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id: string) {
-    const ok = window.confirm("Delete this doctor?")
-    if (!ok) return
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/doctors/${id}`, { method: "DELETE" })
-        const json = await res.json()
-        if (!res.ok) throw new Error(json.error || "Delete failed")
-        setDoctors((list) => list.filter((d) => d.id !== id))
-        toast({ title: "Doctor deleted" })
-      } catch (e: any) {
-        console.error(e)
-        toast({ title: "Delete failed", description: e?.message ?? "Unknown error" })
+    if (!confirm("Delete this doctor? This action cannot be undone.")) return
+    setDeletingId(id)
+    try {
+      if (isSupabaseAvailable && supabase) {
+        const { error } = await supabase.from("doctors").delete().eq("id", id)
+        if (error) throw error
       }
-    })
+      setDoctors((prev) => {
+        const next = prev.filter((d) => d.id !== id)
+        setLocalDoctors(next)
+        return next
+      })
+    } catch (err) {
+      console.error("Failed to delete doctor:", err)
+      alert("Failed to delete doctor. Please check Supabase table and RLS policies.")
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
-    <main className="p-4 md:p-6 lg:p-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Doctors</h1>
+        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700">
+          <Plus className="mr-2 h-4 w-4" />
+          Add Doctor
+        </Button>
+      </div>
+
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-xl md:text-2xl">Doctors</CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Manage Doctors</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search doctors..."
-                className="pl-8 w-[200px] md:w-[280px]"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, email, or phone..."
+                className="pl-8"
+                aria-label="Search doctors"
               />
             </div>
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Doctor
-            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>First Name</TableHead>
-                  <TableHead>Last Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="whitespace-nowrap">ID</TableHead>
+                  <TableHead className="whitespace-nowrap">First Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Last Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Email</TableHead>
+                  <TableHead className="whitespace-nowrap">Phone</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!loading && filtered.length === 0 ? (
+                {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No doctors found
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                      No doctors found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filtered.map((d) => (
                     <TableRow key={d.id}>
-                      <TableCell className="font-medium">{d.first_name}</TableCell>
+                      <TableCell className="font-medium">{d.id}</TableCell>
+                      <TableCell>{d.first_name}</TableCell>
                       <TableCell>{d.last_name}</TableCell>
-                      <TableCell>{d.email}</TableCell>
-                      <TableCell>{d.phone}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(d)}>
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(d.id)}>
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
+                      <TableCell className="truncate">{d.email}</TableCell>
+                      <TableCell className="truncate">{d.phone}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openEdit(d)}>
+                            <Pencil className="mr-1 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(d.id)}
+                            disabled={deletingId === d.id}
+                          >
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            {deletingId === d.id ? "Deleting..." : "Delete"}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -226,74 +285,75 @@ export default function DoctorsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeDialog())}>
-        <DialogContent className="max-w-2xl p-0">
-          <div className="h-[80vh] md:h-auto md:max-h-[85vh] flex flex-col">
-            {/* Header */}
-            <div className="flex-shrink-0 p-6 pb-4 border-b">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Update Doctor" : "Add Doctor"}</DialogTitle>
-                <DialogDescription>Only First Name, Last Name, Email, and Phone are required.</DialogDescription>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="p-0 sm:max-w-xl">
+          {/* Modal layout: header + scrollable content + sticky footer */}
+          <div className="flex h-[90vh] max-h-[90vh] flex-col">
+            <div className="flex-shrink-0 border-b px-6 py-4">
+              <DialogHeader className="text-left">
+                <DialogTitle>{form.id ? "Update Doctor" : "Add Doctor"}</DialogTitle>
               </DialogHeader>
             </div>
 
-            {/* Scrollable content */}
-            <form className="flex-1 overflow-y-auto p-6 space-y-6" onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+            <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
                   <Label htmlFor="first_name">First Name</Label>
                   <Input
                     id="first_name"
                     value={form.first_name}
-                    onChange={(e) => onChange("first_name", e.target.value)}
+                    onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+                    placeholder="e.g. Jane"
                     required
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="last_name">Last Name</Label>
                   <Input
                     id="last_name"
                     value={form.last_name}
-                    onChange={(e) => onChange("last_name", e.target.value)}
+                    onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+                    placeholder="e.g. Doe"
                     required
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="name@example.com"
-                    value={form.email ?? ""}
-                    onChange={(e) => onChange("email", e.target.value)}
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="doctor@example.com"
                   />
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
-                    placeholder="+1 555 000 0000"
-                    value={form.phone ?? ""}
-                    onChange={(e) => onChange("phone", e.target.value)}
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="+1 555 123 4567"
                   />
                 </div>
               </div>
-
-              <Separator />
-
-              {/* Footer (fixed) */}
-              <div className="flex-shrink-0 p-4 border-t flex items-center justify-end gap-2 sticky bottom-0 bg-background">
-                <Button type="button" variant="outline" onClick={closeDialog} disabled={isPending}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isPending}>
-                  {editing ? "Update" : "Add"}
-                </Button>
-              </div>
             </form>
+
+            <DialogFooter className="sticky bottom-0 z-10 flex-shrink-0 gap-2 border-t bg-background px-6 py-4">
+              <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => formRef.current?.requestSubmit()}
+                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={saving}
+              >
+                {saving ? (form.id ? "Updating..." : "Creating...") : form.id ? "Update Doctor" : "Add Doctor"}
+              </Button>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>
-    </main>
+    </div>
   )
 }
