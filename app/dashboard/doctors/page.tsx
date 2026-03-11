@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Pencil, Trash2, Search } from "lucide-react"
 import { supabase, isSupabaseAvailable } from "@/lib/supabase"
 
@@ -18,6 +20,8 @@ type Doctor = {
   last_name: string
   email: string | null
   phone: string | null
+  // Optional availability flag coming from Supabase or future updates
+  available?: boolean | null
   created_at?: string
   updated_at?: string
 }
@@ -28,6 +32,7 @@ type FormState = {
   last_name: string
   email: string
   phone: string
+  available: boolean
 }
 
 const LS_KEY = "meditrack:doctors"
@@ -64,6 +69,7 @@ export default function DoctorsPage() {
     last_name: "",
     email: "",
     phone: "",
+    available: true,
   })
 
   // Load doctors (Supabase if available, otherwise localStorage)
@@ -108,6 +114,7 @@ export default function DoctorsPage() {
       last_name: "",
       email: "",
       phone: "",
+      available: true,
     })
     setOpen(true)
   }
@@ -119,6 +126,7 @@ export default function DoctorsPage() {
       last_name: doc.last_name ?? "",
       email: doc.email ?? "",
       phone: doc.phone ?? "",
+      available: doc.available ?? true,
     })
     setOpen(true)
   }
@@ -142,6 +150,7 @@ export default function DoctorsPage() {
           last_name: form.last_name,
           email: form.email || null,
           phone: form.phone || null,
+          available: form.available,
           updated_at: now,
         }
         if (isSupabaseAvailable && supabase) {
@@ -161,6 +170,7 @@ export default function DoctorsPage() {
           last_name: form.last_name,
           email: form.email || null,
           phone: form.phone || null,
+          available: form.available,
           created_at: now,
           updated_at: now,
         }
@@ -208,7 +218,7 @@ export default function DoctorsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Doctors</h1>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" />
           Add Doctor
         </Button>
@@ -241,6 +251,7 @@ export default function DoctorsPage() {
                   <TableHead className="whitespace-nowrap">Last Name</TableHead>
                   <TableHead className="whitespace-nowrap">Email</TableHead>
                   <TableHead className="whitespace-nowrap">Phone</TableHead>
+                  <TableHead className="whitespace-nowrap">Availability</TableHead>
                   <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -259,6 +270,18 @@ export default function DoctorsPage() {
                       <TableCell>{d.last_name}</TableCell>
                       <TableCell className="truncate">{d.email}</TableCell>
                       <TableCell className="truncate">{d.phone}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Badge
+                          variant="outline"
+                          className={`rounded-full px-3 py-0.5 text-[0.7rem] font-medium ${
+                            d.available ?? true
+                              ? "border-emerald-300 bg-emerald-500/5 text-emerald-700"
+                              : "border-red-300 bg-red-500/5 text-red-700"
+                          }`}
+                        >
+                          {d.available ?? true ? "Available" : "Unavailable"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" size="sm" onClick={() => openEdit(d)}>
@@ -286,17 +309,19 @@ export default function DoctorsPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="p-0 sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
           {/* Modal layout: header + scrollable content + sticky footer */}
           <div className="flex h-[90vh] max-h-[90vh] flex-col">
-            <div className="flex-shrink-0 border-b px-6 py-4">
+            <div className="flex-shrink-0 border-b border-border/70 px-6 py-4">
               <DialogHeader className="text-left">
-                <DialogTitle>{form.id ? "Update Doctor" : "Add Doctor"}</DialogTitle>
+                <DialogTitle className="text-xl font-semibold">
+                  {form.id ? "Update Doctor" : "Add Doctor"}
+                </DialogTitle>
               </DialogHeader>
             </div>
 
-            <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <form ref={formRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">First Name</Label>
                   <Input
@@ -336,16 +361,33 @@ export default function DoctorsPage() {
                     placeholder="+1 555 123 4567"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="availability">Availability</Label>
+                  <Select
+                    value={form.available ? "available" : "unavailable"}
+                    onValueChange={(value) =>
+                      setForm((f) => ({ ...f, available: value === "available" }))
+                    }
+                  >
+                    <SelectTrigger id="availability">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="unavailable">Unavailable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </form>
 
-            <DialogFooter className="sticky bottom-0 z-10 flex-shrink-0 gap-2 border-t bg-background px-6 py-4">
-              <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+            <DialogFooter className="sticky bottom-0 z-10 flex-shrink-0 gap-2 border-t border-border/70 bg-card/80 px-6 py-4">
+              <Button variant="outline" onClick={() => setOpen(false)} disabled={saving} className="rounded-xl">
                 Cancel
               </Button>
               <Button
                 onClick={() => formRef.current?.requestSubmit()}
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="rounded-xl bg-primary px-5 hover:bg-primary/90"
                 disabled={saving}
               >
                 {saving ? (form.id ? "Updating..." : "Creating...") : form.id ? "Update Doctor" : "Add Doctor"}

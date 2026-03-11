@@ -72,7 +72,7 @@ export default function AppointmentsPage() {
       case "scheduled":
         return "bg-blue-100 text-blue-800 border-blue-200"
       case "completed":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-blue-100 text-blue-800 border-blue-200"
       case "cancelled":
         return "bg-red-100 text-red-800 border-red-200"
       case "in progress":
@@ -100,7 +100,7 @@ export default function AppointmentsPage() {
 
     setSubmitting(true)
     try {
-      const newAppointment: Omit<Appointment, "created_at" | "updated_at"> = {
+      const tempAppointment: Appointment = {
         id: generateAppointmentId(),
         patient_name: formData.patient_name || "",
         patient_id: formData.patient_id || "",
@@ -111,6 +111,21 @@ export default function AppointmentsPage() {
         status: (formData.status as Appointment["status"]) || "Scheduled",
         notes: formData.notes || "",
         duration: formData.duration || "30 minutes",
+        doctor_available: true,
+      }
+
+      // compute doctor availability for this slot
+      const hasConflict = appointments.some(
+        (other) =>
+          other.doctor === tempAppointment.doctor &&
+          other.appointment_date === tempAppointment.appointment_date &&
+          other.appointment_time === tempAppointment.appointment_time &&
+          other.status !== "Cancelled",
+      )
+
+      const newAppointment: Omit<Appointment, "created_at" | "updated_at"> = {
+        ...tempAppointment,
+        doctor_available: !hasConflict,
       }
 
       const { error } = await supabase.from("appointments").insert([newAppointment])
@@ -149,10 +164,31 @@ export default function AppointmentsPage() {
 
     setSubmitting(true)
     try {
+      const next: Partial<Appointment> = {
+        ...formData,
+      }
+
+      if (formData.doctor || formData.appointment_date || formData.appointment_time) {
+        const targetDoctor = formData.doctor ?? selectedAppointment.doctor
+        const targetDate = formData.appointment_date ?? selectedAppointment.appointment_date
+        const targetTime = formData.appointment_time ?? selectedAppointment.appointment_time
+
+        const hasConflict = appointments.some(
+          (other) =>
+            other.id !== selectedAppointment.id &&
+            other.doctor === targetDoctor &&
+            other.appointment_date === targetDate &&
+            other.appointment_time === targetTime &&
+            other.status !== "Cancelled",
+        )
+
+        next.doctor_available = !hasConflict
+      }
+
       const { error } = await supabase
         .from("appointments")
         .update({
-          ...formData,
+          ...next,
           updated_at: new Date().toISOString(),
         })
         .eq("id", selectedAppointment.id)
@@ -231,17 +267,21 @@ export default function AppointmentsPage() {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
+            <Button className="rounded-xl bg-primary hover:bg-primary/90">
               <Plus className="mr-2 h-4 w-4" />
               Schedule Appointment
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
             <DialogHeader>
-              <DialogTitle>Schedule New Appointment</DialogTitle>
-              <DialogDescription>Create a new appointment for a patient.</DialogDescription>
+              <div className="border-b border-border/70 px-6 pb-4 pt-5">
+                <DialogTitle className="text-xl font-semibold">Schedule New Appointment</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                  Create a new appointment for a patient.
+                </DialogDescription>
+              </div>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-6 px-6 py-5">
               <div className="space-y-2">
                 <Label htmlFor="patient_name">Patient Name *</Label>
                 <Input
@@ -355,14 +395,14 @@ export default function AppointmentsPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+            <DialogFooter className="mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
               <Button
                 onClick={handleAddAppointment}
                 disabled={submitting}
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="rounded-xl bg-primary px-5 hover:bg-primary/90"
               >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Schedule Appointment
@@ -470,7 +510,19 @@ export default function AppointmentsPage() {
                   <TableCell>{appointment.type}</TableCell>
                   <TableCell>{appointment.duration}</TableCell>
                   <TableCell>
-                    <Badge className={getStatusColor(appointment.status)}>{appointment.status}</Badge>
+                    <div className="flex flex-col gap-1">
+                      <Badge className={getStatusColor(appointment.status)}>{appointment.status}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={`w-fit rounded-full border text-[0.7rem] ${
+                          appointment.doctor_available ?? true
+                            ? "border-emerald-300 bg-emerald-500/5 text-emerald-700"
+                            : "border-red-300 bg-red-500/5 text-red-700"
+                        }`}
+                      >
+                        {appointment.doctor_available ?? true ? "Doctor available" : "Doctor busy"}
+                      </Badge>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -496,12 +548,16 @@ export default function AppointmentsPage() {
 
       {/* Edit Appointment Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
           <DialogHeader>
-            <DialogTitle>Edit Appointment</DialogTitle>
-            <DialogDescription>Update appointment details for {selectedAppointment?.patient_name}</DialogDescription>
+            <div className="border-b border-border/70 px-6 pb-4 pt-5">
+              <DialogTitle className="text-xl font-semibold">Edit Appointment</DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                Update appointment details for {selectedAppointment?.patient_name}
+              </DialogDescription>
+            </div>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6 px-6 py-5">
             <div className="space-y-2">
               <Label htmlFor="edit-patient_name">Patient Name *</Label>
               <Input
@@ -615,14 +671,14 @@ export default function AppointmentsPage() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+          <DialogFooter className="mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl">
               Cancel
             </Button>
             <Button
               onClick={handleEditAppointment}
               disabled={submitting}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="rounded-xl bg-primary px-5 hover:bg-primary/90"
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Appointment

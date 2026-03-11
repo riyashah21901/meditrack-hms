@@ -40,6 +40,7 @@ export interface Appointment {
   status: "Scheduled" | "Completed" | "Cancelled" | "In Progress"
   notes: string
   duration: string
+  doctor_available?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -218,6 +219,7 @@ function getDefaultAppointments(): Appointment[] {
       status: "Scheduled",
       notes: "Follow-up for cardiac condition",
       duration: "30 minutes",
+      doctor_available: true,
     },
     {
       id: "A002",
@@ -230,6 +232,7 @@ function getDefaultAppointments(): Appointment[] {
       status: "Completed",
       notes: "Regular health checkup",
       duration: "45 minutes",
+      doctor_available: true,
     },
     {
       id: "A003",
@@ -242,6 +245,7 @@ function getDefaultAppointments(): Appointment[] {
       status: "In Progress",
       notes: "Pneumonia treatment session",
       duration: "60 minutes",
+      doctor_available: false,
     },
     {
       id: "A004",
@@ -254,6 +258,7 @@ function getDefaultAppointments(): Appointment[] {
       status: "Scheduled",
       notes: "Pregnancy consultation",
       duration: "30 minutes",
+      doctor_available: true,
     },
     {
       id: "A005",
@@ -266,6 +271,7 @@ function getDefaultAppointments(): Appointment[] {
       status: "Scheduled",
       notes: "Diabetes management follow-up",
       duration: "30 minutes",
+      doctor_available: true,
     },
   ]
 }

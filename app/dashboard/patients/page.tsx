@@ -80,7 +80,7 @@ export default function PatientsPage() {
       case "critical":
         return "bg-red-100 text-red-800 border-red-200"
       case "normal":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-blue-100 text-blue-800 border-blue-200"
       case "stable":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
       default:
@@ -293,7 +293,7 @@ export default function PatientsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Patients</h1>
           <p className="text-gray-600">Manage patient records and information</p>
         </div>
-        <Button onClick={handleOpenAddDialog} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={handleOpenAddDialog} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" />
           Add Patient
         </Button>
@@ -375,13 +375,17 @@ export default function PatientsPage() {
 
       {/* Add Patient Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Add New Patient</DialogTitle>
-            <DialogDescription>Enter the patient's information to create a new record.</DialogDescription>
+            <div className="border-b border-border/70 px-6 pb-4 pt-5">
+              <DialogTitle className="text-xl font-semibold">Add New Patient</DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                Enter the patient&apos;s information to create a new record.
+              </DialogDescription>
+            </div>
           </DialogHeader>
           <ScrollArea className="flex-1 px-1">
-            <div className="grid grid-cols-2 gap-4 py-4 pr-4">
+            <div className="grid grid-cols-2 gap-6 py-5 pr-5 pl-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name *</Label>
                 <Input
@@ -512,11 +516,15 @@ export default function PatientsPage() {
               </div>
             </div>
           </ScrollArea>
-          <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+          <DialogFooter className="flex-shrink-0 mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">
               Cancel
             </Button>
-            <Button onClick={handleAddPatient} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button
+              onClick={handleAddPatient}
+              disabled={submitting}
+              className="rounded-xl bg-primary px-5 hover:bg-primary/90"
+            >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Add Patient
             </Button>
@@ -526,14 +534,18 @@ export default function PatientsPage() {
 
       {/* View Patient Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Patient Details</DialogTitle>
-            <DialogDescription>Complete information for {selectedPatient?.name}</DialogDescription>
+            <div className="border-b border-border/70 px-6 pb-4 pt-5">
+              <DialogTitle className="text-xl font-semibold">Patient Details</DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                Complete information for {selectedPatient?.name}
+              </DialogDescription>
+            </div>
           </DialogHeader>
           <ScrollArea className="flex-1 px-1">
             {selectedPatient && (
-              <div className="grid grid-cols-2 gap-4 py-4 pr-4">
+              <div className="grid grid-cols-2 gap-6 py-5 pr-5 pl-6">
                 <div>
                   <Label className="text-sm font-medium text-gray-500">Patient ID</Label>
                   <p className="text-sm">{selectedPatient.id}</p>
@@ -589,8 +601,8 @@ export default function PatientsPage() {
               </div>
             )}
           </ScrollArea>
-          <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+          <DialogFooter className="flex-shrink-0 mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} className="rounded-xl">
               Close
             </Button>
           </DialogFooter>
@@ -599,13 +611,17 @@ export default function PatientsPage() {
 
       {/* Edit Patient Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Edit Patient</DialogTitle>
-            <DialogDescription>Update patient information for {selectedPatient?.name}</DialogDescription>
+            <div className="border-b border-border/70 px-6 pb-4 pt-5">
+              <DialogTitle className="text-xl font-semibold">Edit Patient</DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                Update patient information for {selectedPatient?.name}
+              </DialogDescription>
+            </div>
           </DialogHeader>
           <ScrollArea className="flex-1 px-1">
-            <div className="grid grid-cols-2 gap-4 py-4 pr-4">
+            <div className="grid grid-cols-2 gap-6 py-5 pr-5 pl-6">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Full Name *</Label>
                 <Input
@@ -736,11 +752,15 @@ export default function PatientsPage() {
               </div>
             </div>
           </ScrollArea>
-          <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+          <DialogFooter className="flex-shrink-0 mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl">
               Cancel
             </Button>
-            <Button onClick={handleEditPatient} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button
+              onClick={handleEditPatient}
+              disabled={submitting}
+              className="rounded-xl bg-primary px-5 hover:bg-primary/90"
+            >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update Patient
             </Button>

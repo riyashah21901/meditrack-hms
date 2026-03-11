@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Download, Eye, FileText, Plus, Search, Loader2 } from "lucide-react"
+import { Download, Eye, FileText, Plus, Search, Loader2, Trash2 } from "lucide-react"
 import { supabase, type TestReport } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
@@ -67,7 +67,7 @@ export default function ReportsPage() {
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "completed":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-blue-100 text-blue-800 border-blue-200"
       case "pending":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
       case "in review":
@@ -151,6 +151,31 @@ export default function ReportsPage() {
     setIsViewDialogOpen(true)
   }
 
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("Are you sure you want to delete this test report? This action cannot be undone.")) {
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("test_reports").delete().eq("id", reportId)
+      if (error) throw error
+
+      toast({
+        title: "Deleted",
+        description: "Test report deleted successfully.",
+      })
+
+      setReports((prev) => prev.filter((r) => r.id !== reportId))
+    } catch (error) {
+      console.error("Error deleting report:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete test report. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -170,17 +195,21 @@ export default function ReportsPage() {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
+            <Button className="rounded-xl bg-primary hover:bg-primary/90">
               <Plus className="mr-2 h-4 w-4" />
               Add Report
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
             <DialogHeader>
-              <DialogTitle>Add New Test Report</DialogTitle>
-              <DialogDescription>Create a new test report for a patient.</DialogDescription>
+              <div className="border-b border-border/70 px-6 pb-4 pt-5">
+                <DialogTitle className="text-xl font-semibold">Add New Test Report</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                  Create a new test report for a patient.
+                </DialogDescription>
+              </div>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-6 px-6 py-5">
               <div className="space-y-2">
                 <Label htmlFor="patient_name">Patient Name *</Label>
                 <Input
@@ -308,11 +337,15 @@ export default function ReportsPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+            <DialogFooter className="mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button onClick={handleAddReport} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button
+                onClick={handleAddReport}
+                disabled={submitting}
+                className="rounded-xl bg-primary px-5 hover:bg-primary/90"
+              >
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Add Report
               </Button>
@@ -424,6 +457,14 @@ export default function ReportsPage() {
                       <Button variant="ghost" size="icon">
                         <Download className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteReport(report.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -435,14 +476,18 @@ export default function ReportsPage() {
 
       {/* View Report Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-xl">
           <DialogHeader>
-            <DialogTitle>Test Report Details</DialogTitle>
-            <DialogDescription>Complete test report for {selectedReport?.patient_name}</DialogDescription>
+            <div className="border-b border-border/70 px-6 pb-4 pt-5">
+              <DialogTitle className="text-xl font-semibold">Test Report Details</DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                Complete test report for {selectedReport?.patient_name}
+              </DialogDescription>
+            </div>
           </DialogHeader>
           {selectedReport && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-6 px-6 py-5">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <Label className="text-sm font-medium text-gray-500">Report ID</Label>
                   <p className="text-sm">{selectedReport.id}</p>
@@ -487,24 +532,24 @@ export default function ReportsPage() {
 
               <div>
                 <Label className="text-sm font-medium text-gray-500">Test Results</Label>
-                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                <div className="mt-2 rounded-xl bg-muted/40 p-4">
                   <p className="text-sm">{selectedReport.results || "Results pending"}</p>
                 </div>
               </div>
 
               <div>
                 <Label className="text-sm font-medium text-gray-500">Notes</Label>
-                <div className="mt-2 p-4 bg-gray-50 rounded-lg">
+                <div className="mt-2 rounded-xl bg-muted/40 p-4">
                   <p className="text-sm">{selectedReport.notes || "No additional notes"}</p>
                 </div>
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+          <DialogFooter className="mt-2 border-t border-border/70 bg-card/80 px-6 py-4">
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)} className="rounded-xl">
               Close
             </Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
+            <Button className="rounded-xl bg-primary px-5 hover:bg-primary/90">
               <Download className="mr-2 h-4 w-4" />
               Download Report
             </Button>

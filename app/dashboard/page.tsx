@@ -14,9 +14,12 @@ import {
   type Appointment,
   type TestReport,
 } from "@/lib/supabase"
+import { seedDemoData } from "@/lib/demo-seed"
+import { useToast } from "@/hooks/use-toast"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [stats, setStats] = useState({
     totalPatients: 0,
     criticalPatients: 0,
@@ -52,13 +55,13 @@ export default function DashboardPage() {
         // Fallback to localStorage
         patients = localStorageHelpers.getPatients()
         appointments = localStorageHelpers.getAppointments()
-        reports = localStorageHelpers.getTestReports()
+        reports = localStorageHelpers.getReports()
       }
 
       // Calculate stats
       const today = new Date().toISOString().split("T")[0]
       const criticalPatients = patients.filter((p) => p.status.toLowerCase() === "critical").length
-      const todayAppts = appointments.filter((a) => a.date === today)
+      const todayAppts = appointments.filter((a) => a.appointment_date === today)
       const pendingReports = reports.filter((r) => r.status.toLowerCase() === "pending").length
 
       setStats({
@@ -78,12 +81,31 @@ export default function DashboardPage() {
     }
   }
 
+  const handleSeedDemo = async () => {
+    try {
+      await seedDemoData()
+      toast({
+        title: "Demo data added",
+        description: "Added 5 patients, doctors, and linked appointments.",
+      })
+      setLoading(true)
+      await fetchDashboardData()
+    } catch (e) {
+      console.error("Failed to seed demo data:", e)
+      toast({
+        title: "Error",
+        description: "Failed to add demo data. Check Supabase tables and RLS policies.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "critical":
         return "bg-red-100 text-red-800 border-red-200"
       case "normal":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-blue-100 text-blue-800 border-blue-200"
       case "stable":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
       default:
@@ -98,7 +120,7 @@ export default function DashboardPage() {
       case "in progress":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
       case "completed":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-blue-100 text-blue-800 border-blue-200"
       case "cancelled":
         return "bg-red-100 text-red-800 border-red-200"
       default:
@@ -109,7 +131,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         <span className="ml-2">Loading dashboard...</span>
       </div>
     )
@@ -118,9 +140,14 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Welcome to MediTrack Hospital Management System</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Welcome to MediTrack Hospital Management System</p>
+        </div>
+        <Button variant="outline" className="rounded-xl" onClick={handleSeedDemo}>
+          Add demo patients & doctors
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -250,7 +277,7 @@ export default function DashboardPage() {
                       <p className="font-medium">{appointment.patient_name}</p>
                       <p className="text-sm text-gray-500">
                         <Clock className="inline h-3 w-3 mr-1" />
-                        {appointment.time} • Dr. {appointment.doctor}
+                        {appointment.appointment_time} • {appointment.doctor}
                       </p>
                     </div>
                     <Badge className={getAppointmentStatusColor(appointment.status)}>{appointment.status}</Badge>
